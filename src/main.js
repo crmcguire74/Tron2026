@@ -109,20 +109,22 @@ function neonBar(parent, length, colorMat, position, rotation = [0, 0, 0], width
 
 function createDisc(colorMat = mats.cyan, radius = .58) {
   const g = new THREE.Group();
+  const rotor = new THREE.Group();
+  g.add(rotor);
   const body = mesh(new THREE.CylinderGeometry(radius * .95, radius, .085, 64, 2), mats.black);
   const upperDeck = mesh(new THREE.CylinderGeometry(radius * .72, radius * .9, .035, 64), mats.armor, [1, 1, 1], [0, .058, 0]);
   const lowerDeck = mesh(new THREE.CylinderGeometry(radius * .9, radius * .72, .035, 64), mats.armor, [1, 1, 1], [0, -.058, 0]);
   const outer = mesh(new THREE.TorusGeometry(radius, .052, 8, 64), colorMat, [1, 1, 1], [0, 0, 0], [Math.PI / 2, 0, 0]);
   const inner = mesh(new THREE.TorusGeometry(radius * .47, .022, 6, 48), colorMat, [1, 1, 1], [0, .082, 0], [Math.PI / 2, 0, 0]);
   const hub = mesh(new THREE.CylinderGeometry(radius * .17, radius * .2, .055, 32), mats.black, [1, 1, 1], [0, .085, 0]);
-  g.add(body, upperDeck, lowerDeck, outer, inner, hub);
+  rotor.add(body, upperDeck, lowerDeck, outer, inner, hub);
   for (let i = 0; i < 12; i++) {
     const a = i / 12 * Math.PI * 2;
     const plate = mesh(geo.box, mats.armor, [.075, .018, .18], [Math.cos(a) * radius * .68, .095, Math.sin(a) * radius * .68], [0, -a, 0]);
     const vent = mesh(geo.box, colorMat, [.014, .012, .1], [Math.cos(a) * radius * .68, .118, Math.sin(a) * radius * .68], [0, -a, 0]);
-    g.add(plate, vent);
+    rotor.add(plate, vent);
   }
-  g.userData.isFlyingDisc = true;
+  g.userData = { isFlyingDisc: true, rotor };
   return g;
 }
 
@@ -162,7 +164,7 @@ function createArmoredUnit(hostile = true, tier = 0) {
   shoulderR.add(mesh(geo.cone, mats.armor, [.09, .28, .09], [.75, .15, 0], [0, 0, -Math.PI / 2]));
 
   root.add(pelvis, torso, head, leftArm, rightArm, leftLeg, rightLeg, shoulderL, shoulderR);
-  const weapon = createDisc(core, .34); weapon.position.set(.86, 1.68, .1); weapon.rotation.z = Math.PI / 2; root.add(weapon);
+  const weapon = createDisc(core, .34); weapon.position.set(.86, 1.68, .1); root.add(weapon);
 
   if (tier > 0) {
     const back = new THREE.Group(); back.position.set(0, 1.9, -.35);
@@ -190,10 +192,15 @@ function loadSentinelModel() {
 function createImportedSentinel(tier = 0) {
   const g = new THREE.Group();
   const model = cloneSkeleton(sentinelTemplate);
-  // This GLB already carries its Blender-to-meter conversion on the Character node.
-  // Skinned bind-pose bounds are not reliable for normalization, so preserve authored scale.
-  model.scale.setScalar(18);
-  model.position.y = 0;
+  // Normalize the supplied rig to a human-scale 2.32 m silhouette. The asset
+  // contains a baked unit conversion, so a hard-coded multiplier produces the
+  // giant feet/body framing seen in the previous build.
+  model.updateMatrixWorld(true);
+  const bounds = new THREE.Box3().setFromObject(model);
+  const authoredHeight = Math.max(.01, bounds.getSize(new THREE.Vector3()).y);
+  const modelScale = 2.32 / authoredHeight;
+  model.scale.setScalar(modelScale);
+  model.position.y = -bounds.min.y * modelScale;
   model.rotation.y = Math.PI;
   model.traverse(obj => {
     if (!obj.isMesh) return;
@@ -216,9 +223,17 @@ function createImportedSentinel(tier = 0) {
   neonBar(armorRig, .42, mats.orangeGlass, [.5, 1.94, .02], [0, 0, 0], .022);
   g.add(armorRig);
 
-  const weapon = createDisc(mats.orange, .34); weapon.position.set(.72, 1.55, .12); weapon.rotation.z = Math.PI / 2; g.add(weapon);
+  const weapon = createDisc(mats.orange, .34); weapon.position.set(.72, 1.55, .12); g.add(weapon);
   const mixer = new THREE.AnimationMixer(model);
-  const run = sentinelAnimations.find(a => /run/i.test(a.name)) || sentinelAnimations.find(a => /walk/i.test(a.name)) || sentinelAnimations[0];
+  const sourceRun = sentinelAnimations.find(a => /run/i.test(a.name)) || sentinelAnimations.find(a => /walk/i.test(a.name)) || sentinelAnimations[0];
+  const run = sourceRun?.clone();
+  // The supplied Mixamo clip contains forward root translation. Lock horizontal
+  // root motion so the animated mesh runs in place on its gameplay platform.
+  if (run) for (const track of run.tracks) {
+    if (!/position$/i.test(track.name) || !/(hips|root|armature)/i.test(track.name) || track.values.length < 3) continue;
+    const baseX = track.values[0], baseZ = track.values[2];
+    for (let i = 0; i < track.values.length; i += 3) { track.values[i] = baseX; track.values[i + 2] = baseZ; }
+  }
   const action = run ? mixer.clipAction(run) : null; if (action) { action.timeScale = .82; action.play(); }
   const head = model.getObjectByName('mixamorig:Head');
   g.userData = { imported: true, model, armorRig, mixer, action, head, weapon, hostile: true, tier, health: 52 + tier * 38, phase: Math.random() * 6.28, speed: 1.25, attack: 1, dead: false };
@@ -321,7 +336,9 @@ function cycleStyle(color) {
   if (!generatedCycleStyles.has(color)) generatedCycleStyles.set(color, {
     glow: color === 'cyan' ? mats.cyanGlass : color === 'orange' ? mats.orangeGlass : new THREE.MeshPhysicalMaterial({ color: hex, emissive: hex, emissiveIntensity: 1.45, transparent: true, opacity: .76, roughness: .18 }),
     core: color === 'cyan' ? mats.cyan : color === 'orange' ? mats.orange : new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }),
-    wall: new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: true, toneMapped: false })
+    // An opaque emissive panel gives bloom a stable source and avoids the
+    // transparent front/back-face sorting that made moving trails flash.
+    wall: new THREE.MeshBasicMaterial({ color: hex, transparent: false, opacity: 1, side: THREE.FrontSide, depthWrite: true, toneMapped: false })
   });
   return generatedCycleStyles.get(color);
 }
@@ -401,22 +418,17 @@ function createCycleEnvironment() {
     neonBar(corner, 8, x === z ? mats.cyanGlass : mats.orangeGlass, [0, 5, 1.85], [Math.PI / 2, 0, 0], .06);
     cycleWorld.add(corner);
   }
-  for (let i = -2; i <= 2; i++) {
-    const obstacle = new THREE.Group(); obstacle.position.set(i * 10, 0, i % 2 ? 7 : -7);
-    obstacle.add(mesh(geo.box, mats.black, [1.3, 1.15, 3.4], [0, 1.15, 0]));
-    obstacle.add(mesh(geo.box, mats.armor, [1.5, .12, 3.65], [0, 2.3, 0]));
-    neonBar(obstacle, 5.8, i % 2 ? mats.orangeGlass : mats.cyanGlass, [1.52, 1.5, 0], [0, 0, 0], .035);
-    cycleWorld.add(obstacle);
-  }
   const roster = ['cyan', 'orange', 'magenta', 'lime', 'violet'];
-  const spawns = [[0, 28, 0], [-22, -22, 2], [-8, -28, 2], [8, -22, 2], [22, -28, 2]];
+  const spawns = [[0, 32, 0], [-30, -30, 2], [30, -30, 2], [-30, 10, 1], [30, 10, 3]];
   for (let i = 0; i < roster.length; i++) {
     const c = createCycle(roster[i]);
     c.userData.pos.set(spawns[i][0], 0, spawns[i][1]);
     c.userData.spawn.copy(c.userData.pos);
     c.userData.spawnDir = spawns[i][2];
-    c.userData.lastTrailPoint = c.userData.pos.clone();
     c.userData.dir = spawns[i][2];
+    c.userData.wallDir = c.userData.dir;
+    c.userData.trailStart = cycleRearPoint(c.userData);
+    c.userData.activeWall = null;
     c.userData.speed = i === 0 ? 8 : 10.5 + Math.random() * 2.5;
     c.userData.ai = i !== 0;
     cycles.push(c); cycleWorld.add(c);
@@ -514,9 +526,11 @@ async function enterMode() {
     if (!matchMedia('(pointer: coarse)').matches && !renderer.xr.isPresenting) ui.canvas.requestPointerLock?.();
   } else {
     createCycleEnvironment();
+    const initialView = cycleCameraPose(cycles[0].userData);
+    camera.position.copy(initialView.position); camera.lookAt(initialView.look);
     ui.objectiveLabel.textContent = 'ROUND'; ui.modeName.textContent = 'VECTOR RUN';
     ui.healthLabel.textContent = 'ARMOR INTEGRITY'; ui.energyLabel.textContent = 'BOOST';
-    ui.abilityLabel.textContent = 'WALL READY'; ui.abilityHint.textContent = 'LMB BOOST · RMB WALL'; ui.touchAction.textContent = 'BOOST';
+    ui.abilityLabel.textContent = 'TRAIL ACTIVE'; ui.abilityHint.textContent = 'LMB BOOST · RMB TRAIL SURGE'; ui.touchAction.textContent = 'BOOST';
     ui.speedLines.classList.add('show');
     ui.minimap.classList.add('visible'); ui.minimap.setAttribute('aria-hidden', 'false');
     ui.cycleGuide.classList.add('visible'); ui.cycleGuide.setAttribute('aria-hidden', 'false');
@@ -576,7 +590,7 @@ function throwEnemyDisc(enemy) {
 
 function updateHostileDiscs(dt) {
   for (let i = hostileDiscs.length - 1; i >= 0; i--) {
-    const d = hostileDiscs[i]; d.userData.age += dt; d.rotation.y += dt * 18; d.position.addScaledVector(d.userData.dir, d.userData.speed * dt);
+    const d = hostileDiscs[i]; d.userData.age += dt; d.quaternion.identity(); d.userData.rotor.rotation.y += dt * 18; d.position.addScaledVector(d.userData.dir, d.userData.speed * dt);
     if (d.position.distanceTo(camera.position) < .7) { damagePlayer(12); scene.remove(d); hostileDiscs.splice(i, 1); continue; }
     if (d.userData.age > 3.2) { scene.remove(d); hostileDiscs.splice(i, 1); }
   }
@@ -584,8 +598,7 @@ function updateHostileDiscs(dt) {
 
 function updateDiscs(dt) {
   for (let i = discs.length - 1; i >= 0; i--) {
-    const d = discs[i], data = d.userData; data.age += dt; d.rotation.y += dt * 21;
-    d.rotation.x = 0; d.rotation.z = 0;
+    const d = discs[i], data = d.userData; data.age += dt; d.quaternion.identity(); data.rotor.rotation.y += dt * 21;
     if (data.age > .85) data.returning = true;
     if (data.returning) data.dir.lerp(new THREE.Vector3().subVectors(camera.position, d.position).normalize(), Math.min(1, dt * 8)).normalize();
     d.position.addScaledVector(data.dir, data.speed * dt);
@@ -647,7 +660,8 @@ function updateEnemies(dt, time) {
       d.head.rotation.y = Math.sin(time * 1.6 + d.phase) * .18;
       d.root.position.y = Math.abs(Math.sin(d.phase)) * .055;
     }
-    d.weapon.rotation.z += dt * (distance < 5 ? 12 : 3);
+    d.weapon.quaternion.identity();
+    d.weapon.userData.rotor.rotation.y += dt * (distance < 5 ? 12 : 3);
     if (d.flash > 0) {
       d.flash -= dt;
       if (d.imported) d.model.traverse(o => { if (o.isMesh) o.material.emissiveIntensity = .8; });
@@ -749,18 +763,16 @@ function updateCycles(dt, time) {
         d.dir = (d.dir + (Math.random() > .5 ? 1 : 3)) % 4; d.turnCooldown = .9;
       }
     }
-    d.trailTimer -= dt;
-    if (d.trailTimer <= 0) { addTrailSegment(c); d.trailTimer = .18; }
+    syncCycleWall(c);
     placeCycle(c, time, i, dt);
   }
   state.position = 1;
 
-  const pos = p.pos.clone().setY(1.2);
-  const side = new THREE.Vector3(forward.z, 0, -forward.x);
-  const desired = pos.clone().addScaledVector(forward, -16).addScaledVector(side, 5.2).add(new THREE.Vector3(0, 6.6, 0));
-  camera.position.lerp(desired, 1 - Math.pow(.002, dt));
-  const look = pos.clone().addScaledVector(forward, 1.2).add(new THREE.Vector3(0, .45, 0)); camera.lookAt(look);
+  const view = cycleCameraPose(p);
+  camera.position.lerp(view.position, 1 - Math.pow(.002, dt));
+  camera.lookAt(view.look);
   ui.speedValue.textContent = String(Math.round(state.cycleSpeed * 13)).padStart(3, '0');
+  if (ambient?.engine && audioContext) ambient.engine.frequency.setTargetAtTime(58 + state.cycleSpeed * 2.4, audioContext.currentTime, .08);
   state.energy = state.cycleBoost;
   updateWalls(dt); updateMinimap();
 }
@@ -772,6 +784,16 @@ function placeCycle(c, time, index, dt) {
   for (const w of d.wheels) w.rotation.z -= d.speed * dt * 1.5;
   d.machine.position.y = Math.sin(time * 12 + index) * .025;
   if (d.pilot) { d.pilot.userData.head.rotation.x = Math.sin(time * 2 + index) * .03; d.pilot.userData.torso.rotation.z = c.rotation.z * 1.8; }
+}
+
+function cycleCameraPose(data) {
+  const forward = cycleDirection(data.dir);
+  const side = new THREE.Vector3(forward.z, 0, -forward.x);
+  const anchor = data.pos.clone().setY(1.2);
+  return {
+    position: anchor.clone().addScaledVector(forward, -14).addScaledVector(side, 6.2).add(new THREE.Vector3(0, 10.8, 0)),
+    look: anchor.clone().addScaledVector(forward, 3.2).add(new THREE.Vector3(0, .25, 0))
+  };
 }
 
 function cycleDirection(dir) {
@@ -791,8 +813,8 @@ function crashCycle() {
   setTimeout(() => {
     wallSegments.forEach(w => cycleWorld.remove(w)); wallSegments.length = 0;
     cycles.forEach((c, i) => {
-      c.visible = true; c.userData.pos.copy(c.userData.spawn); c.userData.dir = c.userData.spawnDir || 0; c.userData.turnCooldown = .8; c.userData.trailTimer = .2;
-      c.userData.lastTrailPoint = c.userData.pos.clone();
+      c.visible = true; c.userData.pos.copy(c.userData.spawn); c.userData.dir = c.userData.spawnDir || 0; c.userData.turnCooldown = .8;
+      c.userData.wallDir = c.userData.dir; c.userData.trailStart = cycleRearPoint(c.userData); c.userData.activeWall = null;
       if (i > 0) c.userData.speed = 10.5 + Math.random() * 2.5;
     });
     state.cycleDir = 0; state.cycleSpeed = 8; state.cycleBoost = 100; state.health = 100; state.cycleResetting = false;
@@ -812,25 +834,53 @@ function explodeCycle(cycle) {
 
 function crashRival(rival) {
   if (!rival || rival.userData.crashed) return;
+  if (rival.userData.activeWall) { rival.userData.activeWall.userData.active = false; rival.userData.activeWall = null; }
   rival.userData.crashed = true; explodeCycle(rival); sound('destroy');
   setTimeout(() => {
     if (state.phase !== 'cycle') return;
-    rival.userData.pos.copy(rival.userData.spawn); rival.userData.dir = rival.userData.spawnDir || 0; rival.userData.turnCooldown = 1; rival.userData.trailTimer = .2; rival.userData.crashed = false; rival.visible = true;
-    rival.userData.lastTrailPoint = rival.userData.pos.clone();
+    rival.userData.pos.copy(rival.userData.spawn); rival.userData.dir = rival.userData.spawnDir || 0; rival.userData.turnCooldown = 1; rival.userData.crashed = false; rival.visible = true;
+    rival.userData.wallDir = rival.userData.dir; rival.userData.trailStart = cycleRearPoint(rival.userData); rival.userData.activeWall = null;
   }, 900);
 }
 
-function addTrailSegment(c) {
-  const d = c.userData, mat = d.wall.clone();
-  if (!d.lastTrailPoint) { d.lastTrailPoint = d.pos.clone(); return; }
-  const deltaX = d.pos.x - d.lastTrailPoint.x, deltaZ = d.pos.z - d.lastTrailPoint.z;
-  const distance = Math.hypot(deltaX, deltaZ); if (distance < .025) return;
-  const horizontal = Math.abs(deltaX) >= Math.abs(deltaZ), halfLength = distance / 2 + .09;
-  const centerX = (d.pos.x + d.lastTrailPoint.x) / 2, centerZ = (d.pos.z + d.lastTrailPoint.z) / 2;
-  const wall = mesh(geo.box, mat, horizontal ? [halfLength, 1.75, .06] : [.06, 1.75, halfLength], [centerX, 1.75, centerZ]);
-  wall.userData = { life: 12, age: 0, owner: c, halfX: horizontal ? halfLength : .16, halfZ: horizontal ? .16 : halfLength };
+function cycleRearPoint(data, dir = data.dir) {
+  return data.pos.clone().addScaledVector(cycleDirection(dir), -2.05);
+}
+
+function createActiveWall(cycle, start, dir) {
+  const wall = mesh(geo.box, cycle.userData.wall.clone(), [.1, 2.8, .1], [start.x, 1.4, start.z]);
+  wall.renderOrder = 2;
+  wall.userData = { life: Infinity, age: 0, owner: cycle, active: true, ownerGrace: Infinity, start: start.clone(), dir, halfX: .1, halfZ: .1 };
   cycleWorld.add(wall); wallSegments.push(wall);
-  d.lastTrailPoint.copy(d.pos);
+  return wall;
+}
+
+function setWallSpan(wall, start, end) {
+  const dx = end.x - start.x, dz = end.z - start.z;
+  const horizontal = Math.abs(dx) > Math.abs(dz);
+  const length = Math.max(.16, horizontal ? Math.abs(dx) : Math.abs(dz)) + .18;
+  wall.position.set((start.x + end.x) / 2, 1.4, (start.z + end.z) / 2);
+  wall.scale.set(horizontal ? length : .16, 2.8, horizontal ? .16 : length);
+  wall.userData.halfX = horizontal ? length / 2 : .16;
+  wall.userData.halfZ = horizontal ? .16 : length / 2;
+}
+
+function syncCycleWall(cycle) {
+  const d = cycle.userData;
+  if (d.wallDir !== d.dir) {
+    const junction = d.pos.clone();
+    if (d.activeWall) {
+      setWallSpan(d.activeWall, d.activeWall.userData.start, junction);
+      d.activeWall.userData.active = false;
+      d.activeWall.userData.ownerGrace = .65;
+    }
+    d.trailStart = junction;
+    d.activeWall = null;
+    d.wallDir = d.dir;
+  }
+  const rear = cycleRearPoint(d);
+  if (!d.activeWall) d.activeWall = createActiveWall(cycle, d.trailStart || rear, d.dir);
+  setWallSpan(d.activeWall, d.activeWall.userData.start, rear);
 }
 
 function updateMinimap() {
@@ -840,8 +890,6 @@ function updateMinimap() {
   ctx.strokeStyle = 'rgba(101,247,255,.15)'; ctx.lineWidth = 1;
   for (let n = -40; n <= 40; n += 10) { ctx.beginPath(); ctx.moveTo(toX(n), 0); ctx.lineTo(toX(n), h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, toY(n)); ctx.lineTo(w, toY(n)); ctx.stroke(); }
   ctx.strokeStyle = 'rgba(101,247,255,.7)'; ctx.lineWidth = 3; ctx.strokeRect(2, 2, w - 4, h - 4);
-  ctx.fillStyle = 'rgba(120,160,168,.35)';
-  for (let i = -2; i <= 2; i++) { const x = toX(i * 10), y = toY(i % 2 ? 7 : -7); ctx.fillRect(x - 6, y - 15, 12, 30); }
   const colorHex = { cyan: '#65f7ff', orange: '#ff5a1f', magenta: '#ff3bd4', lime: '#8dff42', violet: '#8c5cff' };
   for (const wall of wallSegments) {
     const owner = wall.userData.owner; ctx.strokeStyle = colorHex[owner?.userData.color] || '#65f7ff'; ctx.globalAlpha = .7; ctx.lineWidth = 3;
@@ -867,19 +915,28 @@ function boostCycle() {
 
 function deployWall() {
   if (state.phase !== 'cycle' || !cycles[0]) return;
-  const c = cycles[0], d = c.userData, horizontal = d.dir % 2 === 1;
-  const behind = d.pos.clone().addScaledVector(cycleDirection(d.dir), -2.2);
-  const wall = mesh(geo.box, d.wall.clone(), horizontal ? [1.8, 1.75, .055] : [.055, 1.75, 1.8], [behind.x, 1.75, behind.z]);
-  wall.userData = { life: 4.5, age: 0, owner: c, halfX: horizontal ? 1.8 : .16, halfZ: horizontal ? .16 : 1.8 };
-  cycleWorld.add(wall); wallSegments.push(wall); sound('wall'); ui.abilityLabel.textContent = 'WALL DEPLOYED'; setTimeout(() => state.phase === 'cycle' && (ui.abilityLabel.textContent = 'WALL READY'), 700);
+  const wall = cycles[0].userData.activeWall;
+  if (wall) wall.userData.surging = true;
+  sound('wall'); ui.abilityLabel.textContent = 'TRAIL SURGE';
+  setTimeout(() => {
+    if (wall?.material) wall.userData.surging = false;
+    if (state.phase === 'cycle') ui.abilityLabel.textContent = 'TRAIL ACTIVE';
+  }, 700);
 }
 
 function updateWalls(dt) {
   for (let i = wallSegments.length - 1; i >= 0; i--) {
-    const w = wallSegments[i]; w.userData.life -= dt; w.userData.age = (w.userData.age || 0) + dt; w.material.opacity = Math.min(.76, w.userData.life * .35);
-    if (state.phase === 'cycle' && w.userData.age > (w.userData.owner === cycles[0] ? .55 : .2)) {
+    const w = wallSegments[i];
+    if (Number.isFinite(w.userData.life)) w.userData.life -= dt;
+    if (Number.isFinite(w.userData.ownerGrace)) w.userData.ownerGrace = Math.max(0, w.userData.ownerGrace - dt);
+    w.userData.age = (w.userData.age || 0) + dt;
+    // Trail brightness remains constant. Rewriting transparent opacity every
+    // frame caused visible pulsing on some WebGL drivers.
+    w.material.opacity = 1;
+    if (state.phase === 'cycle' && w.userData.age > .18) {
       const p = cycles[0]?.userData.pos;
-      if (p && Math.abs(p.x - w.position.x) < (w.userData.halfX || .2) + .42 && Math.abs(p.z - w.position.z) < (w.userData.halfZ || .2) + .42) {
+      const playerCanHit = w.userData.owner !== cycles[0] || (!w.userData.active && w.userData.ownerGrace <= 0);
+      if (playerCanHit && p && Math.abs(p.x - w.position.x) < (w.userData.halfX || .2) + .42 && Math.abs(p.z - w.position.z) < (w.userData.halfZ || .2) + .42) {
         crashCycle(); w.userData.life = 0;
       }
       for (let c = 1; c < cycles.length; c++) {
@@ -890,7 +947,7 @@ function updateWalls(dt) {
         }
       }
     }
-    if (w.userData.life <= 0) { cycleWorld.remove(w); wallSegments.splice(i, 1); }
+    if (Number.isFinite(w.userData.life) && w.userData.life <= 0) { cycleWorld.remove(w); wallSegments.splice(i, 1); }
   }
   state.cycleBoost = Math.min(100, state.cycleBoost + dt * 5); state.cycleHeat = Math.max(0, state.cycleHeat - dt * 10);
 }
@@ -938,22 +995,32 @@ let toastTimer;
 function showToast(text) { ui.toast.textContent = text; ui.toast.classList.add('visible'); clearTimeout(toastTimer); toastTimer = setTimeout(() => ui.toast.classList.remove('visible'), 1800); }
 
 let audioContext, ambient;
+function ensureAudio() {
+  if (!state.audio) return null;
+  audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+  return audioContext;
+}
 function sound(type) {
   if (!state.audio) return;
-  audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-  const ctx = audioContext; const osc = ctx.createOscillator(); const gain = ctx.createGain(); const now = ctx.currentTime;
+  const ctx = ensureAudio(); if (!ctx) return;
+  const osc = ctx.createOscillator(); const gain = ctx.createGain(); const now = ctx.currentTime;
   const profiles = { select: [260, 520, .08, 'sine'], throw: [180, 760, .18, 'sawtooth'], recall: [620, 170, .2, 'triangle'], catch: [400, 980, .07, 'sine'], hit: [110, 55, .12, 'square'], destroy: [90, 28, .36, 'sawtooth'], damage: [70, 38, .22, 'square'], boost: [120, 520, .28, 'sawtooth'], wall: [520, 140, .18, 'triangle'] };
   const p = profiles[type] || profiles.select; osc.type = p[3]; osc.frequency.setValueAtTime(p[0], now); osc.frequency.exponentialRampToValueAtTime(Math.max(20, p[1]), now + p[2]);
-  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.055 * state.volume, now + .012); gain.gain.exponentialRampToValueAtTime(.0001, now + p[2]);
+  gain.gain.setValueAtTime(.0001, now); gain.gain.exponentialRampToValueAtTime(.1 * state.volume, now + .012); gain.gain.exponentialRampToValueAtTime(.0001, now + p[2]);
   osc.connect(gain).connect(ctx.destination); osc.start(); osc.stop(now + p[2] + .02);
 }
 
 function startAmbient() {
-  if (!state.audio || ambient) return; audioContext ||= new (window.AudioContext || window.webkitAudioContext)(); const ctx = audioContext;
-  const osc = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter(); osc.type = 'sawtooth'; osc.frequency.value = state.phase === 'cycle' ? 48 : 36; filter.type = 'lowpass'; filter.frequency.value = 130; gain.gain.value = .018 * state.volume;
-  osc.connect(filter).connect(gain).connect(ctx.destination); osc.start(); ambient = { osc, gain };
+  if (!state.audio || ambient) return; const ctx = ensureAudio(); if (!ctx) return;
+  const osc = ctx.createOscillator(), engine = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
+  osc.type = 'sawtooth'; osc.frequency.value = state.phase === 'cycle' ? 46 : 36;
+  engine.type = state.phase === 'cycle' ? 'square' : 'sine'; engine.frequency.value = state.phase === 'cycle' ? 78 : 54; engine.detune.value = -7;
+  filter.type = 'lowpass'; filter.frequency.value = state.phase === 'cycle' ? 240 : 150; filter.Q.value = 2.2;
+  gain.gain.value = (state.phase === 'cycle' ? .052 : .032) * state.volume;
+  osc.connect(filter); engine.connect(filter); filter.connect(gain).connect(ctx.destination); osc.start(); engine.start(); ambient = { osc, engine, gain };
 }
-function stopAmbient() { if (ambient) { ambient.gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + .12); ambient.osc.stop(audioContext.currentTime + .15); ambient = null; } }
+function stopAmbient() { if (ambient) { ambient.gain.gain.exponentialRampToValueAtTime(.0001, audioContext.currentTime + .12); ambient.osc.stop(audioContext.currentTime + .15); ambient.engine.stop(audioContext.currentTime + .15); ambient = null; } }
 
 function handlePrimary() { if (state.phase === 'disc') throwDisc(); else if (state.phase === 'cycle') boostCycle(); }
 function handleSecondary() { if (state.phase === 'disc') recallDisc(); else if (state.phase === 'cycle') deployWall(); }
@@ -974,6 +1041,7 @@ async function enterRequestedPlatform() {
 }
 
 function bindUi() {
+  document.addEventListener('pointerdown', ensureAudio, { capture: true, once: true });
   document.querySelectorAll('.mode-card').forEach(card => card.addEventListener('mouseenter', () => {
     document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active')); card.classList.add('active'); sound('select');
   }));
@@ -983,7 +1051,7 @@ function bindUi() {
   $('#audioToggle').addEventListener('click', (e) => { state.audio = !state.audio; e.currentTarget.textContent = `AUDIO: ${state.audio ? 'ON' : 'OFF'}`; if (!state.audio) stopAmbient(); else if (state.phase !== 'menu') startAmbient(); });
   $('#fullscreenButton').addEventListener('click', () => document.documentElement.requestFullscreen?.());
   $('#bloomRange').addEventListener('input', e => bloom.strength = Number(e.target.value));
-  $('#volumeRange').addEventListener('input', e => { state.volume = Number(e.target.value); if (ambient) ambient.gain.gain.value = .018 * state.volume; });
+  $('#volumeRange').addEventListener('input', e => { state.volume = Number(e.target.value); if (ambient) ambient.gain.gain.value = (state.phase === 'cycle' ? .052 : .032) * state.volume; });
   $('#qualitySelect').addEventListener('change', e => {
     const q = e.target.value; renderer.setPixelRatio(Math.min(devicePixelRatio, q === 'high' ? 1.8 : q === 'balanced' ? 1.25 : 1)); renderer.shadowMap.enabled = q !== 'performance'; bloom.enabled = q !== 'performance'; showToast(`${q.toUpperCase()} PROFILE ACTIVE`);
   });

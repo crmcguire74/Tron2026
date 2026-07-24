@@ -1,48 +1,43 @@
 # Project Neon
 
-Project Neon is a cinematic Three.js prototype with two playable modes:
+Project Neon is the primary cinematic WebXR application in this directory. The supplied `SAMPLETRONGAME` folder is retained only as a gameplay reference; it is not the active runtime or the visual foundation.
 
-- **Shattered Core:** first-person disc combat across floating platforms and five escalating enemy waves.
-- **Vector Run:** a square-arena duel against four colored enemy cycles, each producing its own continuous lethal light wall.
+## Experiences
 
-The supplied skinned sentinel GLB is used in gameplay with its running animation. Discs are modeled as horizontal spinning frisbee-like weapons. Cycles, arena machinery, and effects are articulated real-time 3D objects rendered with physically based materials, emissive components, fog, reflections, shadows, particles, and bloom.
+- **Disc Combat:** Desktop, VR, and AR. Fight animated 3D sentinels from floating platforms using flat, horizontally spinning identity discs. Later waves activate more enemies and more platforms.
+- **Cycle Arena:** Desktop and VR. Race one player cycle against four differently colored rivals in a large square arena. Cycles move on cardinal headings, turn in exact 90-degree increments, and continuously emit lethal light walls from the rear of each machine.
 
-## Run locally
+The cinematic landing screen provides explicit launch buttons for every supported game and platform combination.
+
+## Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173/`. Direct mode links are available at `?mode=disc` and `?mode=cycle`.
-
-## Controls
-
-### Disc combat
-
-- WASD: move
-- Mouse: look
-- Left click: throw disc
-- Right click: recall disc
-- Space: jump between platforms
-- Escape: return to menu
-
-### Vector Run
-
-- W/S: accelerate and brake
-- A/D: exact 90-degree left/right turns
-- Shift: drift/brake
-- Left click: boost
-- Right click: deploy energy wall
-- Escape: return to menu
-
-The landing screen explicitly exposes Disc Combat for Desktop, VR, and AR; Cycle Arena is available for Desktop and seated VR. Touch controls appear automatically on coarse-pointer devices. Unsupported immersive modes are identified after WebXR capability detection.
-
-## Production build
+Build and preview:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-The optimized output is generated in `dist/`.
+## Desktop controls
+
+### Disc Combat
+
+- WASD: move
+- Mouse: aim
+- Left mouse: throw
+- Right mouse: recall
+- Space: jump between platforms
+- Shift: sprint
+
+### Cycle Arena
+
+- W/S: accelerate or brake
+- A/D: instant 90-degree left or right turn
+- Left mouse: boost
+- Right mouse: trail surge
+- Escape: return to landing screen
