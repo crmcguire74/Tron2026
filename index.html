@@ -33,37 +33,42 @@
 
       <main id="menu" class="menu-shell">
         <section class="hero-copy">
-          <div class="eyebrow"><span>WEBXR COMBAT SYSTEM</span><b>01 / 02</b></div>
-          <h1>ENTER THE<br /><em>FRACTURED</em><br />MACHINE</h1>
-          <p>Two trials. One system. Master the disc or become the weapon.</p>
+          <div class="eyebrow"><span>PROJECT NEON</span><b>SELECT EXPERIENCE</b></div>
+          <h1>CHOOSE<br />YOUR <em>PROTOCOL</em></h1>
+          <p>Two complete games built for the screen and the spatial web. Select a protocol to see its controls before entering.</p>
         </section>
 
         <section class="mode-selector" aria-label="Game mode selection">
           <article class="mode-card active" data-mode="disc" tabindex="0">
             <div class="mode-index">01</div>
             <div>
-              <span class="mode-kicker">COMBAT PROTOCOL</span>
-              <h2>SHATTERED<br />CORE</h2>
-              <p>Survive five waves of biomechanical sentinels inside the ruptured reactor.</p>
+              <span class="mode-kicker">SHATTERED CORE</span>
+              <h2>DISC<br />COMBAT</h2>
+              <p>Throw, recall, ricochet and defend against animated biomechanical sentinels.</p>
             </div>
-            <div class="mode-meta"><span>SOLO</span><span>08-12 MIN</span><span>VR READY</span></div>
-            <button class="engage" data-launch="disc"><span>ENGAGE</span><i>↗</i></button>
+            <div class="platform-block"><small>SELECT HOW TO PLAY</small><div class="platform-choices">
+              <button data-game="disc" data-platform="desktop"><b>DESKTOP</b><span>Mouse + keyboard</span></button>
+              <button data-game="disc" data-platform="vr"><b>VR</b><span>Tracked throw</span></button>
+              <button data-game="disc" data-platform="ar"><b>AR</b><span>Room combat</span></button>
+            </div></div>
           </article>
           <article class="mode-card" data-mode="cycle" tabindex="0">
             <div class="mode-index">02</div>
             <div>
-              <span class="mode-kicker orange">VELOCITY PROTOCOL</span>
-              <h2>VECTOR<br />RUN</h2>
-              <p>Thread an articulated machine through a hostile magnetic circuit.</p>
+              <span class="mode-kicker orange">VECTOR RUN</span>
+              <h2>CYCLE<br />ARENA</h2>
+              <p>Command an articulated light machine through a square arena of lethal trails.</p>
             </div>
-            <div class="mode-meta"><span>6 RIDERS</span><span>03 LAPS</span><span>90 HZ</span></div>
-            <button class="engage orange-button" data-launch="cycle"><span>INITIALIZE</span><i>↗</i></button>
+            <div class="platform-block"><small>SELECT HOW TO PLAY</small><div class="platform-choices cycle-platforms">
+              <button data-game="cycle" data-platform="desktop"><b>DESKTOP</b><span>Keyboard</span></button>
+              <button data-game="cycle" data-platform="vr"><b>VR</b><span>Seated cockpit</span></button>
+            </div></div>
           </article>
         </section>
 
         <div class="menu-footer">
           <span>PROJECT NEON / PROTOTYPE 0.1</span>
-          <span>DESKTOP · TOUCH · WEBXR</span>
+          <span>DISC: DESKTOP / VR / AR · CYCLE: DESKTOP / VR</span>
         </div>
       </main>
 
@@ -101,6 +106,17 @@
           <div class="objective"><span id="objectiveLabel">WAVE</span><b id="objectiveValue">01</b><small id="objectiveSub">HOSTILES 04</small></div>
           <div class="mode-name" id="modeName">SHATTERED CORE</div>
           <div class="score"><span>SCORE</span><b id="scoreValue">000000</b></div>
+        </div>
+        <div id="minimap" class="minimap" aria-hidden="true">
+          <div class="minimap-label"><span>ARENA MAP</span><b>N</b></div>
+          <div class="minimap-grid"><canvas id="mapCanvas" width="356" height="356"></canvas></div>
+          <div class="minimap-coords" id="mapCoords">X 00 · Z 00</div>
+        </div>
+        <div id="cycleGuide" class="cycle-guide" aria-hidden="true">
+          <div><kbd>A</kbd><span>TURN LEFT</span><b>90°</b></div>
+          <div class="velocity"><small>VELOCITY</small><strong id="speedValue">000</strong><em>KM/H</em></div>
+          <div><kbd>D</kbd><span>TURN RIGHT</span><b>90°</b></div>
+          <p>AUTO-FORWARD · DO NOT TOUCH ANY LIGHT WALL</p>
         </div>
         <div class="reticle" id="reticle"><i></i><i></i><i></i><i></i><b></b></div>
         <div class="hit-marker" id="hitMarker">×</div>
