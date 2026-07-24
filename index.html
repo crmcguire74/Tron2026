@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#020608" />
+    <meta name="description" content="Project Neon - a cinematic 3D disc combat and light-cycle experience." />
+    <title>Project Neon</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Project Neon 3D game viewport"></canvas>
+
+      <div class="grain" aria-hidden="true"></div>
+      <div class="scanlines" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <button class="brand" id="homeButton" aria-label="Return to main menu">
+          <span class="brand-mark"><i></i><i></i></span>
+          <span><b>PROJECT</b> NEON</span>
+        </button>
+        <div class="system-status"><span></span> SYSTEM ONLINE</div>
+        <nav>
+          <button id="audioToggle" class="icon-button" aria-label="Toggle audio">AUDIO: ON</button>
+          <button id="settingsButton" class="icon-button">SYSTEM</button>
+        </nav>
+      </header>
+
+      <main id="menu" class="menu-shell">
+        <section class="hero-copy">
+          <div class="eyebrow"><span>WEBXR COMBAT SYSTEM</span><b>01 / 02</b></div>
+          <h1>ENTER THE<br /><em>FRACTURED</em><br />MACHINE</h1>
+          <p>Two trials. One system. Master the disc or become the weapon.</p>
+        </section>
+
+        <section class="mode-selector" aria-label="Game mode selection">
+          <article class="mode-card active" data-mode="disc" tabindex="0">
+            <div class="mode-index">01</div>
+            <div>
+              <span class="mode-kicker">COMBAT PROTOCOL</span>
+              <h2>SHATTERED<br />CORE</h2>
+              <p>Survive five waves of biomechanical sentinels inside the ruptured reactor.</p>
+            </div>
+            <div class="mode-meta"><span>SOLO</span><span>08-12 MIN</span><span>VR READY</span></div>
+            <button class="engage" data-launch="disc"><span>ENGAGE</span><i>↗</i></button>
+          </article>
+          <article class="mode-card" data-mode="cycle" tabindex="0">
+            <div class="mode-index">02</div>
+            <div>
+              <span class="mode-kicker orange">VELOCITY PROTOCOL</span>
+              <h2>VECTOR<br />RUN</h2>
+              <p>Thread an articulated machine through a hostile magnetic circuit.</p>
+            </div>
+            <div class="mode-meta"><span>6 RIDERS</span><span>03 LAPS</span><span>90 HZ</span></div>
+            <button class="engage orange-button" data-launch="cycle"><span>INITIALIZE</span><i>↗</i></button>
+          </article>
+        </section>
+
+        <div class="menu-footer">
+          <span>PROJECT NEON / PROTOTYPE 0.1</span>
+          <span>DESKTOP · TOUCH · WEBXR</span>
+        </div>
+      </main>
+
+      <aside id="settingsPanel" class="settings-panel" aria-hidden="true">
+        <button class="panel-close" id="settingsClose">×</button>
+        <span class="mode-kicker">SYSTEM CONFIGURATION</span>
+        <h2>VISUAL<br />CALIBRATION</h2>
+        <label>RENDER QUALITY
+          <select id="qualitySelect">
+            <option value="high">HIGH FIDELITY</option>
+            <option value="balanced">BALANCED</option>
+            <option value="performance">PERFORMANCE</option>
+          </select>
+        </label>
+        <label>BLOOM INTENSITY
+          <input id="bloomRange" type="range" min="0" max="2" step="0.1" value="0.55" />
+        </label>
+        <label>MASTER VOLUME
+          <input id="volumeRange" type="range" min="0" max="1" step="0.05" value="0.65" />
+        </label>
+        <button id="fullscreenButton" class="secondary-button">ENTER FULLSCREEN</button>
+        <div class="diagnostic"><span>RENDERER</span><b>WEBGL2 / PBR</b><span>XR</span><b id="xrStatus">CHECKING</b></div>
+      </aside>
+
+      <section id="briefing" class="briefing" aria-hidden="true">
+        <div class="briefing-line"></div>
+        <span id="briefingProtocol">COMBAT PROTOCOL 01</span>
+        <h2 id="briefingTitle">SHATTERED CORE</h2>
+        <p id="briefingCopy">WASD MOVE · MOUSE AIM · CLICK THROW · RIGHT CLICK RECALL · SPACE DODGE</p>
+        <button id="enterButton">CLICK TO ENGAGE</button>
+      </section>
+
+      <section id="hud" class="hud" aria-hidden="true">
+        <div class="hud-top">
+          <div class="objective"><span id="objectiveLabel">WAVE</span><b id="objectiveValue">01</b><small id="objectiveSub">HOSTILES 04</small></div>
+          <div class="mode-name" id="modeName">SHATTERED CORE</div>
+          <div class="score"><span>SCORE</span><b id="scoreValue">000000</b></div>
+        </div>
+        <div class="reticle" id="reticle"><i></i><i></i><i></i><i></i><b></b></div>
+        <div class="hit-marker" id="hitMarker">×</div>
+        <div class="hud-bottom">
+          <div class="meter-block">
+            <span id="healthLabel">CORE INTEGRITY</span>
+            <div class="meter"><i id="healthMeter"></i></div>
+            <b id="healthValue">100</b>
+          </div>
+          <div class="ability-status">
+            <div class="disc-icon"><i></i></div>
+            <span id="abilityLabel">DISC READY</span>
+            <small id="abilityHint">LMB THROW · RMB RECALL</small>
+          </div>
+          <div class="meter-block right">
+            <span id="energyLabel">OVERDRIVE</span>
+            <div class="meter"><i id="energyMeter"></i></div>
+            <b id="energyValue">00%</b>
+          </div>
+        </div>
+        <div class="damage-vignette"></div>
+        <div class="speed-lines" id="speedLines"></div>
+      </section>
+
+      <button id="exitButton" class="exit-button" aria-hidden="true">ESC / EXIT</button>
+      <div id="toast" class="toast">SYSTEM ONLINE</div>
+      <div id="touchControls" class="touch-controls" aria-hidden="true">
+        <div class="touch-stick" id="touchStick"><i></i></div>
+        <button id="touchAction">THROW</button>
+        <button id="touchDodge">DODGE</button>
+      </div>
+    </div>
+  </body>
+</html>
