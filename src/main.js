@@ -194,6 +194,7 @@ function createImportedSentinel(tier = 0) {
   // Skinned bind-pose bounds are not reliable for normalization, so preserve authored scale.
   model.scale.setScalar(18);
   model.position.y = 0;
+  model.rotation.y = Math.PI;
   model.traverse(obj => {
     if (!obj.isMesh) return;
     obj.material = obj.material.clone();
@@ -243,6 +244,7 @@ function limb(length, radius, glow) {
 
 function createCycle(color = 'cyan', rider = true) {
   const style = cycleStyle(color), glow = style.glow, core = style.core;
+  const shell = new THREE.MeshPhysicalMaterial({ color: color === 'cyan' ? 0x1b3942 : 0x292c30, emissive: color === 'cyan' ? 0x06151a : 0x0c0b0a, emissiveIntensity: .85, metalness: .88, roughness: .18, clearcoat: 1, clearcoatRoughness: .08 });
   const g = new THREE.Group();
   const machine = new THREE.Group(); g.add(machine);
   const wheels = [];
@@ -250,34 +252,34 @@ function createCycle(color = 'cyan', rider = true) {
     const assembly = new THREE.Group(); assembly.position.set(0, .83, z);
     const tire = mesh(new THREE.TorusGeometry(.77, .18, 12, 40), mats.rubber);
     const ring = mesh(new THREE.TorusGeometry(.76, .045, 8, 40), core);
-    const hub = mesh(new THREE.CylinderGeometry(.16, .16, .16, 20), mats.armor, [1, 1, 1], [0, 0, 0], [Math.PI / 2, 0, 0]);
+    const hub = mesh(new THREE.CylinderGeometry(.16, .16, .16, 20), shell, [1, 1, 1], [0, 0, 0], [Math.PI / 2, 0, 0]);
     assembly.add(tire, ring, hub);
     for (let i = 0; i < 5; i++) {
       const a = i / 5 * Math.PI * 2;
-      const vane = mesh(geo.box, mats.armor, [.05, .48, .06], [Math.cos(a) * .35, Math.sin(a) * .35, 0], [0, 0, -a]);
+      const vane = mesh(geo.box, shell, [.05, .48, .06], [Math.cos(a) * .35, Math.sin(a) * .35, 0], [0, 0, -a]);
       assembly.add(vane);
     }
     wheels.push(assembly); machine.add(assembly);
   }
-  const spine = mesh(geo.box, mats.armor, [.38, .18, 1.45], [0, .82, 0]);
+  const spine = mesh(geo.box, shell, [.38, .18, 1.45], [0, .82, 0]);
   spine.geometry = new THREE.BoxGeometry(1, 1, 1);
   machine.add(spine);
-  const monocoque = mesh(new THREE.CapsuleGeometry(.5, 2.25, 8, 18), mats.armor, [.92, 1, 1], [0, 1.04, 0], [Math.PI / 2, 0, 0]);
+  const monocoque = mesh(new THREE.CapsuleGeometry(.5, 2.25, 8, 18), shell, [.92, 1, 1], [0, 1.04, 0], [Math.PI / 2, 0, 0]);
   const belly = mesh(geo.box, mats.black, [.52, .25, 1.32], [0, .65, 0]);
   const canopy = mesh(new THREE.SphereGeometry(.68, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), mats.black, [.78, .62, 1.2], [0, 1.36, .18]);
   machine.add(monocoque, belly, canopy);
   const nose = mesh(geo.ico, mats.black, [.52, .42, 1.12], [0, 1.02, -1.16], [0, 0, 0]);
-  const tail = mesh(geo.cone, mats.armor, [.47, 1.2, .47], [0, 1.05, 1.25], [Math.PI / 2, 0, 0]);
+  const tail = mesh(geo.cone, shell, [.47, 1.2, .47], [0, 1.05, 1.25], [Math.PI / 2, 0, 0]);
   machine.add(nose, tail);
   neonBar(machine, 2.7, glow, [.42, 1.08, 0], [0, 0, 0], .04);
   neonBar(machine, 2.7, glow, [-.42, 1.08, 0], [0, 0, 0], .04);
   for (const side of [-1, 1]) {
     const suspension = mesh(geo.box, mats.black, [.08, .08, .74], [side * .42, .67, 0], [0, 0, side * .05]);
-    const sideArmor = mesh(geo.box, mats.armor, [.12, .32, .86], [side * .5, .92, 0], [0, 0, side * .05]);
+    const sideArmor = mesh(geo.box, shell, [.12, .32, .86], [side * .5, .92, 0], [0, 0, side * .05]);
     const sideGlow = mesh(geo.box, glow, [.018, .045, .78], [side * .625, 1.05, 0]);
     machine.add(suspension, sideArmor, sideGlow);
   }
-  const engine = mesh(geo.cyl, mats.armor, [.31, .54, .31], [0, .86, .25], [Math.PI / 2, 0, 0]);
+  const engine = mesh(geo.cyl, shell, [.31, .54, .31], [0, .86, .25], [Math.PI / 2, 0, 0]);
   const engineGlow = mesh(new THREE.TorusGeometry(.29, .035, 8, 32), core, [1, 1, 1], [0, .86, .58]);
   machine.add(engine, engineGlow);
   const underglow = new THREE.PointLight(core.color, color === 'cyan' ? 10 : 7, 8, 2);
@@ -285,7 +287,7 @@ function createCycle(color = 'cyan', rider = true) {
 
   let pilot = null;
   if (rider) {
-    pilot = createCycleRider(glow);
+    pilot = createCycleRider(glow, shell);
     pilot.position.set(0, 1.12, .28); pilot.rotation.x = -.42;
     machine.add(pilot);
   }
@@ -294,10 +296,10 @@ function createCycle(color = 'cyan', rider = true) {
   return g;
 }
 
-function createCycleRider(glow) {
+function createCycleRider(glow, shell = mats.armor) {
   const rider = new THREE.Group();
   const torso = new THREE.Group(); torso.position.y = .62;
-  torso.add(mesh(new THREE.CapsuleGeometry(.28, .55, 6, 14), mats.armor, [.9, 1, .78]));
+  torso.add(mesh(new THREE.CapsuleGeometry(.28, .55, 6, 14), shell, [.9, 1, .78]));
   torso.add(mesh(geo.box, glow, [.035, .35, .025], [0, 0, .24]));
   const head = new THREE.Group(); head.position.y = 1.35;
   head.add(mesh(geo.ico, mats.black, [.3, .34, .32]));
@@ -319,20 +321,22 @@ function cycleStyle(color) {
   if (!generatedCycleStyles.has(color)) generatedCycleStyles.set(color, {
     glow: color === 'cyan' ? mats.cyanGlass : color === 'orange' ? mats.orangeGlass : new THREE.MeshPhysicalMaterial({ color: hex, emissive: hex, emissiveIntensity: 1.45, transparent: true, opacity: .76, roughness: .18 }),
     core: color === 'cyan' ? mats.cyan : color === 'orange' ? mats.orange : new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }),
-    wall: new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: .76, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+    wall: new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: true, toneMapped: false })
   });
   return generatedCycleStyles.get(color);
 }
 
 function createCombatEnvironment() {
   combatWorld.clear(); combatPlatforms.length = 0;
+  const playerDeck = new THREE.MeshPhysicalMaterial({ color: 0x153b43, emissive: 0x06181d, emissiveIntensity: .8, metalness: .7, roughness: .28, clearcoat: 1 });
+  const enemyDeck = new THREE.MeshPhysicalMaterial({ color: 0x321810, emissive: 0x170803, emissiveIntensity: .75, metalness: .74, roughness: .26, clearcoat: 1 });
   const placements = [
     [0, 0, 10], [0, .35, 0], [-8, 0, 2], [8, 0, 2],
     [-8, .65, -8], [0, 1, -10], [8, .65, -8], [-4, 1.3, -18], [4, 1.3, -18]
   ];
   placements.forEach((p, index) => {
     const platform = new THREE.Group(); platform.position.set(p[0], p[1], p[2]);
-    const deck = mesh(new THREE.CylinderGeometry(3.45, 3.15, .38, 64), index === 0 ? mats.armor : mats.black, [1, 1, 1], [0, -.12, 0]);
+    const deck = mesh(new THREE.CylinderGeometry(3.45, 3.15, .38, 64), index === 0 ? playerDeck : enemyDeck, [1, 1, 1], [0, -.12, 0]);
     const outerRing = mesh(new THREE.TorusGeometry(3.3, .075, 8, 64), index === 0 ? mats.cyanGlass : mats.orangeGlass, [1, 1, 1], [0, .09, 0], [Math.PI / 2, 0, 0]);
     const innerRing = mesh(new THREE.TorusGeometry(2.22, .035, 6, 48), index === 0 ? mats.cyan : mats.orange, [1, 1, 1], [0, .11, 0], [Math.PI / 2, 0, 0]);
     const hub = mesh(new THREE.CylinderGeometry(.72, 1.25, .22, 32), mats.armor, [1, 1, 1], [0, .11, 0]);
@@ -373,7 +377,7 @@ function createCycleEnvironment() {
   cycleWorld.add(mesh(geo.box, floorMat, [40, .2, 40], [0, -.22, 0]));
   for (let x = -36; x <= 36; x += 8) for (let z = -36; z <= 36; z += 8) {
     const alt = Math.abs(Math.round((x + z) / 8)) % 2;
-    const tileMat = new THREE.MeshPhysicalMaterial({ color: alt ? 0x17424d : 0x0d3039, emissive: alt ? 0x061a20 : 0x041219, emissiveIntensity: .62, metalness: .52, roughness: .42, clearcoat: .52 });
+    const tileMat = new THREE.MeshBasicMaterial({ color: alt ? 0x153c45 : 0x0b272e, toneMapped: false });
     const tile = mesh(geo.box, tileMat, [3.82, .035, 3.82], [x, .025, z]); tile.receiveShadow = true; cycleWorld.add(tile);
   }
   const grid = new THREE.GridHelper(80, 40, C.cyanHot, 0x3a9199); grid.material.transparent = true; grid.material.opacity = .82; grid.position.y = .08; cycleWorld.add(grid);
@@ -405,13 +409,14 @@ function createCycleEnvironment() {
     cycleWorld.add(obstacle);
   }
   const roster = ['cyan', 'orange', 'magenta', 'lime', 'violet'];
-  const spawns = [[0, 28], [-12, 22], [-4, 28], [4, 22], [12, 28]];
+  const spawns = [[0, 28, 0], [-22, -22, 2], [-8, -28, 2], [8, -22, 2], [22, -28, 2]];
   for (let i = 0; i < roster.length; i++) {
     const c = createCycle(roster[i]);
     c.userData.pos.set(spawns[i][0], 0, spawns[i][1]);
     c.userData.spawn.copy(c.userData.pos);
+    c.userData.spawnDir = spawns[i][2];
     c.userData.lastTrailPoint = c.userData.pos.clone();
-    c.userData.dir = 0;
+    c.userData.dir = spawns[i][2];
     c.userData.speed = i === 0 ? 8 : 10.5 + Math.random() * 2.5;
     c.userData.ai = i !== 0;
     cycles.push(c); cycleWorld.add(c);
@@ -476,7 +481,7 @@ function launchMode(mode) {
     ui.briefingCopy.textContent = 'WASD MOVE · SPACE JUMP BETWEEN DISCS · CLICK THROW · RIGHT CLICK RECALL';
     ui.enter.textContent = 'CLICK TO ENGAGE';
   } else {
-    camera.fov = 68; camera.updateProjectionMatrix();
+    camera.fov = 62; camera.updateProjectionMatrix();
     ui.briefingProtocol.textContent = 'VELOCITY PROTOCOL 02'; ui.briefingTitle.textContent = 'VECTOR RUN';
     ui.briefingCopy.textContent = 'W ACCELERATE · S BRAKE · A / D TURN EXACTLY 90° · AVOID EVERY LIGHT WALL';
     ui.enter.textContent = 'INITIALIZE MACHINE';
@@ -657,7 +662,7 @@ function updateEnemies(dt, time) {
         d.rightArm.rotation.x = -1.85; d.rightArm.rotation.z = -.42;
         d.rightArm.userData.lowerPivot.rotation.x = -1.05; d.torso.rotation.y = -.38;
       } else {
-        d.model.rotation.y = -.12;
+        d.model.rotation.y = Math.PI - .12;
       }
       throwEnemyDisc(e);
     }
@@ -751,9 +756,10 @@ function updateCycles(dt, time) {
   state.position = 1;
 
   const pos = p.pos.clone().setY(1.2);
-  const desired = pos.clone().addScaledVector(forward, -10.5).add(new THREE.Vector3(0, 3.65, 0));
+  const side = new THREE.Vector3(forward.z, 0, -forward.x);
+  const desired = pos.clone().addScaledVector(forward, -16).addScaledVector(side, 5.2).add(new THREE.Vector3(0, 6.6, 0));
   camera.position.lerp(desired, 1 - Math.pow(.002, dt));
-  const look = pos.clone().addScaledVector(forward, 3.25).add(new THREE.Vector3(0, .7, 0)); camera.lookAt(look);
+  const look = pos.clone().addScaledVector(forward, 1.2).add(new THREE.Vector3(0, .45, 0)); camera.lookAt(look);
   ui.speedValue.textContent = String(Math.round(state.cycleSpeed * 13)).padStart(3, '0');
   state.energy = state.cycleBoost;
   updateWalls(dt); updateMinimap();
@@ -785,7 +791,7 @@ function crashCycle() {
   setTimeout(() => {
     wallSegments.forEach(w => cycleWorld.remove(w)); wallSegments.length = 0;
     cycles.forEach((c, i) => {
-      c.visible = true; c.userData.pos.copy(c.userData.spawn); c.userData.dir = 0; c.userData.turnCooldown = .8; c.userData.trailTimer = .2;
+      c.visible = true; c.userData.pos.copy(c.userData.spawn); c.userData.dir = c.userData.spawnDir || 0; c.userData.turnCooldown = .8; c.userData.trailTimer = .2;
       c.userData.lastTrailPoint = c.userData.pos.clone();
       if (i > 0) c.userData.speed = 10.5 + Math.random() * 2.5;
     });
@@ -809,7 +815,7 @@ function crashRival(rival) {
   rival.userData.crashed = true; explodeCycle(rival); sound('destroy');
   setTimeout(() => {
     if (state.phase !== 'cycle') return;
-    rival.userData.pos.copy(rival.userData.spawn); rival.userData.dir = 0; rival.userData.turnCooldown = 1; rival.userData.trailTimer = .2; rival.userData.crashed = false; rival.visible = true;
+    rival.userData.pos.copy(rival.userData.spawn); rival.userData.dir = rival.userData.spawnDir || 0; rival.userData.turnCooldown = 1; rival.userData.trailTimer = .2; rival.userData.crashed = false; rival.visible = true;
     rival.userData.lastTrailPoint = rival.userData.pos.clone();
   }, 900);
 }
@@ -1073,5 +1079,5 @@ renderer.setAnimationLoop(animate);
 // Useful for automated captures and direct mode links: ?mode=disc or ?mode=cycle.
 const directMode = new URLSearchParams(location.search).get('mode');
 if (directMode === 'disc' || directMode === 'cycle') {
-  setTimeout(() => { launchMode(directMode); enterMode(); }, 250);
+  launchMode(directMode); enterMode();
 }
